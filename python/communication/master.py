@@ -23,6 +23,7 @@ def echo_exception():
 
     return "".join(tb_lines)
 
+safe_dist = 100.0
 
 class Arx5Server:
     def __init__(
@@ -125,7 +126,7 @@ class Arx5Server:
                     # print(f"Received SET_EE_POSE message, data: {msg['data']}")
                     target_ee_pose = cast(np.ndarray, msg["data"]["ee_pose"])
 
-                    if np.linalg.norm(target_ee_pose - self.last_eef_cmd) > 0.2:
+                    if np.linalg.norm(target_ee_pose - self.last_eef_cmd) > safe_dist:
                         error_str = f"Error: Cannot set EE pose {target_ee_pose} far away from last command: {self.last_eef_cmd}. Please check the input."
                         print(error_str)
                         self.socket.send_pyobj(
@@ -150,7 +151,7 @@ class Arx5Server:
                                 target_ee_pose
                                 - self.arx5_cartesian_controller.get_home_pose()
                             )
-                            > 0.2
+                            > safe_dist
                         ):
                             error_str = f"Error: Cannot set EE pose far away from home: {target_ee_pose} after RESET_TO_HOME. Please check the input."
                             print(error_str)

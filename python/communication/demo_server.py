@@ -252,13 +252,20 @@ class Arx5Server:
 @click.argument("model")  # ARX arm model: X5 or L5
 @click.argument("interface")  # can bus name (can0 etc.)
 def main(model: str, interface: str):
-    server = Arx5Server(
+    master_server = Arx5Server(
         model=model,
         interface=interface,
         zmq_ip="0.0.0.0",
         zmq_port=8765,
     )
-    server.run()
+    master_server = Arx5Server(
+        model=model,
+        interface=interface,
+        zmq_ip="0.0.0.0",
+        zmq_port=8765,
+    )
+    master_server.run()
+    
 
 
 if __name__ == "__main__":

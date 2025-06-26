@@ -14,6 +14,7 @@ import click
 import sys
 import traceback
 
+safe_dist = 100.0
 
 def echo_exception():
     exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -35,7 +36,10 @@ class Arx5Server:
     ):
         self.model = model
         self.interface = interface
-        self.arx5_cartesian_controller = arx5.Arx5CartesianController(model, interface)
+        robot_config = arx5.RobotConfigFactory.get_instance().get_config("L5")
+        robot_config.gripper_torque_max = 3.0
+        controller_config = arx5.Arx5CartesianController(model, interface).get_controller_config()
+        self.arx5_cartesian_controller = arx5.Arx5CartesianController(robot_config, controller_config, interface)
         print(f"Arx5Server is initialized with {model} on {interface}")
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
@@ -52,6 +56,7 @@ class Arx5Server:
     def run(self):
         print(f"Arx5ZmqServer is running on {self.zmq_ip}:{self.zmq_port}")
         while True:
+            start_t = time.perf_counter()
             try:
                 socks = dict(self.poller.poll(int(self.no_cmd_timeout * 1000)))
                 if self.socket in socks and socks[self.socket] == zmq.POLLIN:
@@ -125,7 +130,7 @@ class Arx5Server:
                     # print(f"Received SET_EE_POSE message, data: {msg['data']}")
                     target_ee_pose = cast(np.ndarray, msg["data"]["ee_pose"])
 
-                    if np.linalg.norm(target_ee_pose - self.last_eef_cmd) > 0.2:
+                    if np.linalg.norm(target_ee_pose - self.last_eef_cmd) > safe_dist:
                         error_str = f"Error: Cannot set EE pose {target_ee_pose} far away from last command: {self.last_eef_cmd}. Please check the input."
                         print(error_str)
                         self.socket.send_pyobj(
@@ -150,7 +155,7 @@ class Arx5Server:
                                 target_ee_pose
                                 - self.arx5_cartesian_controller.get_home_pose()
                             )
-                            > 0.2
+                            > safe_dist
                         ):
                             error_str = f"Error: Cannot set EE pose far away from home: {target_ee_pose} after RESET_TO_HOME. Please check the input."
                             print(error_str)
@@ -241,6 +246,8 @@ class Arx5Server:
                 )
                 print(f"Error: {exception_str}")
                 continue
+            print("Frequency: " + str(1 / (time.perf_counter() - start_t)))
+        
 
     def __del__(self):
         self.socket.close()
@@ -256,7 +263,7 @@ def main(model: str, interface: str):
         model=model,
         interface=interface,
         zmq_ip="0.0.0.0",
-        zmq_port=8765,
+        zmq_port=8766,
     )
     server.run()
 
